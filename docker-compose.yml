@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Outline Wiki Application
+  outline:
+    image: outlinewiki/outline:latest
+    container_name: outline
+    restart: unless-stopped
+    ports:
+      - "${OUTLINE_PORT:-3000}:3000"
+    environment:
+      # Core Configuration
+      NODE_ENV: production
+      SECRET_KEY: ${SECRET_KEY}
+      URL: ${OUTLINE_URL:-http://localhost:3000}
+      
+      # Database Configuration (SQLite)
+      DATABASE_URL: ${DATABASE_URL:-sqlite:///data/outline.db}
+      
+      # Redis Configuration
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      
+      # File Storage (Local filesystem)
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      
+      # Optional: SMTP for email notifications (leave blank to disable)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-noreply@outline.local}
+      
+      # Security
+      FORCE_HTTPS: ${FORCE_HTTPS:-false}
+      
+      # Slack Integration (Optional)
+      SLACK_MESSAGE_ACTIONS: ${SLACK_MESSAGE_ACTIONS:-true}
+      
+    volumes:
+      # SQLite database and uploads
+      - outline_data:/var/lib/outline/data
+    
+    depends_on:
+      - redis
+    
+    networks:
+      - outline-network
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/authentication.info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: outline-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - outline-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  outline_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  outline-network:
+    driver: bridge

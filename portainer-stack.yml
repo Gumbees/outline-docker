@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  outline:
+    image: outlinewiki/outline:latest
+    container_name: outline
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      SECRET_KEY: ${SECRET_KEY}
+      URL: ${OUTLINE_URL}
+      DATABASE_URL: sqlite:///data/outline.db
+      REDIS_URL: redis://redis:6379
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      FORCE_HTTPS: ${FORCE_HTTPS:-false}
+      SLACK_MESSAGE_ACTIONS: "true"
+    volumes:
+      - outline_data:/var/lib/outline/data
+    depends_on:
+      - redis
+    networks:
+      - outline
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/authentication.info"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: outline-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - outline
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  outline_data:
+  redis_data:
+
+networks:
+  outline:
+    driver: bridge
